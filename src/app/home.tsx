@@ -1,841 +1,647 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  Image,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useState } from "react";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
 import VolunteerBottomNav from "../components/volunteer-bottom-nav";
 
-type Contribution = {
-  id: string;
-  opportunityId: string;
-  opportunityTitle: string;
-  organization: string;
-  date: string;
-  hours: number;
-  task: string;
-  evidence: string;
-  status: string;
-  submittedAt: string;
-};
-
-type Opportunity = {
-  id: string;
-  title: string;
-  organization: string;
-  location: string;
-  type: string;
-  hours: string;
-  category: string;
-};
-
-const PROFILE_STORAGE_KEY = "impactra_profile";
-const CONTRIBUTIONS_KEY = "impactra_contributions";
-
-const opportunities: Opportunity[] = [
-  {
-    id: "1",
-    title: "Community Health Outreach",
-    organization: "Impact Health Initiative",
-    location: "Enugu",
-    type: "In-person",
-    hours: "4 hrs",
-    category: "Healthcare",
-  },
-  {
-    id: "2",
-    title: "Digital Skills for Youth",
-    organization: "Future Forward Africa",
-    location: "Remote",
-    type: "Remote",
-    hours: "6 hrs",
-    category: "Technology",
-  },
-  {
-    id: "3",
-    title: "School Environmental Cleanup",
-    organization: "Green Community Network",
-    location: "Enugu",
-    type: "In-person",
-    hours: "3 hrs",
-    category: "Environment",
-  },
-  {
-    id: "4",
-    title: "After-School Reading Support",
-    organization: "Bright Futures Foundation",
-    location: "Enugu",
-    type: "In-person",
-    hours: "2 hrs",
-    category: "Education",
-  },
-  {
-    id: "5",
-    title: "Social Media Volunteer",
-    organization: "Community Action Network",
-    location: "Remote",
-    type: "Remote",
-    hours: "5 hrs",
-    category: "Technology",
-  },
-];
-
-const categories = [
-  "All",
-  "Education",
-  "Healthcare",
-  "Environment",
-  "Technology",
-];
+const BLUE = "#155EEF";
+const DARK_BLUE = "#123B70";
+const BACKGROUND = "#F7F9FD";
+const PALE_BLUE = "#EFF5FF";
+const BORDER = "#E5EBF4";
+const TEXT = "#172B4D";
+const MUTED = "#7B8798";
+const WHITE = "#FFFFFF";
 
 export default function HomeScreen() {
-  const [firstName, setFirstName] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] =
-    useState("All");
 
-  const [contributions, setContributions] = useState<
-    Contribution[]
-  >([]);
+  const openOpportunities = () => {
+    const term = search.trim();
 
-  useEffect(() => {
-    loadHomeData();
-  }, []);
-
-  const loadHomeData = async () => {
-    try {
-      const [savedProfile, savedContributions] =
-        await Promise.all([
-          AsyncStorage.getItem(PROFILE_STORAGE_KEY),
-          AsyncStorage.getItem(CONTRIBUTIONS_KEY),
-        ]);
-
-      if (savedProfile) {
-        try {
-          const profile = JSON.parse(savedProfile);
-
-          setFirstName(profile.firstName || "");
-        } catch {
-          setFirstName("");
-        }
-      }
-
-      if (savedContributions) {
-        try {
-          const parsed = JSON.parse(savedContributions);
-
-          if (Array.isArray(parsed)) {
-            setContributions(parsed);
-          }
-        } catch {
-          setContributions([]);
-        }
-      }
-    } catch (error) {
-      console.log("Unable to load home data:", error);
-    }
+    router.push({
+      pathname: "/opportunities",
+      params: term ? { search: term } : {},
+    });
   };
 
-  const filteredOpportunities = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
+  const openProfile = () => {
+    router.push("/profile");
+  };
 
-    return opportunities.filter((opportunity) => {
-      const matchesCategory =
-        selectedCategory === "All" ||
-        opportunity.category === selectedCategory;
-
-      const matchesSearch =
-        !searchValue ||
-        opportunity.title
-          .toLowerCase()
-          .includes(searchValue) ||
-        opportunity.organization
-          .toLowerCase()
-          .includes(searchValue) ||
-        opportunity.location
-          .toLowerCase()
-          .includes(searchValue);
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [search, selectedCategory]);
-
-  const verifiedHours = contributions
-    .filter((item) => item.status === "Verified")
-    .reduce(
-      (total, item) => total + (Number(item.hours) || 0),
-      0
-    );
-
-  const appliedOpportunities = new Set(
-    contributions.map((item) => item.opportunityId)
-  );
-
-  const certificateCount = contributions.filter(
-    (item) => item.status === "Verified"
-  ).length;
-
-  const displayName = firstName.trim() || "Volunteer";
-
-  const openOpportunity = (opportunity: Opportunity) => {
-    router.push({
-      pathname: "/opportunity-details",
-      params: {
-        id: opportunity.id,
-        title: opportunity.title,
-      },
-    });
+  const openApplicationStatus = () => {
+    router.push("/application-status");
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.container}
-      >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>
-              Welcome back
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={BACKGROUND}
+      />
 
-            <Text style={styles.name}>
-              {displayName}
-            </Text>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Welcome header */}
+          <View style={styles.header}>
+            <Pressable
+              style={styles.avatar}
+              onPress={openProfile}
+              accessibilityRole="button"
+              accessibilityLabel="Open volunteer profile"
+            >
+              <Ionicons
+                name="person-outline"
+                size={22}
+                color={BLUE}
+              />
+            </Pressable>
+
+            <View style={styles.greetingBlock}>
+              <Text style={styles.greeting}>
+                Welcome back
+              </Text>
+
+              <Text style={styles.greetingSubtitle}>
+                Ready to make an impact?
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.notificationButton}
+              onPress={openApplicationStatus}
+              accessibilityRole="button"
+              accessibilityLabel="Check application status"
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color={TEXT}
+              />
+            </Pressable>
           </View>
 
-          <Pressable
-            onPress={() =>
-              router.push("/my-profile")
-            }
-            style={({ pressed }) => [
-              styles.logoButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Image
-              source={require("../../assets/images/impactra-logo.png")}
-              style={styles.headerLogo}
-              resizeMode="contain"
-            />
-          </Pressable>
-        </View>
-
-        {/* IMPACT SUMMARY */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>
-            Your impact
-          </Text>
-
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                {verifiedHours}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Verified hours
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                {appliedOpportunities.size}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Applications
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.stat}>
-              <Text style={styles.statNumber}>
-                {certificateCount}
-              </Text>
-
-              <Text style={styles.statLabel}>
-                Certificates
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* SEARCH */}
-        <Text style={styles.sectionTitle}>
-          Find an opportunity
-        </Text>
-
-        <View style={styles.searchBox}>
-          <Ionicons
-            name="search-outline"
-            size={19}
-            color="#6E7781"
-          />
-
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search volunteer opportunities"
-            placeholderTextColor="#8993A0"
-            style={styles.searchInput}
-          />
-        </View>
-
-        {/* CATEGORIES */}
-        <View style={styles.categoryRow}>
-          {categories.map((category) => {
-            const active =
-              selectedCategory === category;
-
-            return (
-              <Pressable
-                key={category}
-                onPress={() =>
-                  setSelectedCategory(category)
-                }
-                style={({ pressed }) => [
-                  active
-                    ? styles.categoryActive
-                    : styles.category,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={
-                    active
-                      ? styles.categoryActiveText
-                      : styles.categoryText
-                  }
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.85}
-                >
-                  {category}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* RECOMMENDED */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Recommended for you
-          </Text>
-
-          <Pressable
-            onPress={() =>
-              router.push("/opportunities")
-            }
-            hitSlop={8}
-          >
-            <Text style={styles.viewAll}>
-              View all
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* OPPORTUNITIES */}
-        {filteredOpportunities.length === 0 ? (
-          <View style={styles.emptyCard}>
+          {/* Opportunity search */}
+          <View style={styles.searchBox}>
             <Ionicons
               name="search-outline"
-              size={28}
-              color="#0958D9"
+              size={21}
+              color={BLUE}
             />
 
-            <Text style={styles.emptyTitle}>
-              No opportunities found
-            </Text>
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search opportunities and causes"
+              placeholderTextColor="#96A2B3"
+              returnKeyType="search"
+              onSubmitEditing={openOpportunities}
+              accessibilityLabel="Search volunteer opportunities"
+            />
 
-            <Text style={styles.emptyText}>
-              Try another search or category.
+            <Pressable
+              onPress={openOpportunities}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Search opportunities"
+            >
+              <Ionicons
+                name="arrow-forward-circle"
+                size={25}
+                color={BLUE}
+              />
+            </Pressable>
+          </View>
+
+          {/* Impact summary */}
+          <View style={styles.sectionHeading}>
+            <View style={styles.headingText}>
+              <Text style={styles.sectionTitle}>
+                Your Impact
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Your verified contributions at a glance.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.impactCard}>
+            <View style={styles.statItem}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={BLUE}
+              />
+
+              <Text style={styles.statValue}>—</Text>
+
+              <Text style={styles.statLabel}>
+                Verified Hours
+              </Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={20}
+                color={BLUE}
+              />
+
+              <Text style={styles.statValue}>—</Text>
+
+              <Text style={styles.statLabel}>
+                Completed Activities
+              </Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <Ionicons
+                name="people-outline"
+                size={20}
+                color={BLUE}
+              />
+
+              <Text style={styles.statValue}>—</Text>
+
+              <Text style={styles.statLabel}>
+                People Reached
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.dataNote}>
+            <Ionicons
+              name="information-circle-outline"
+              size={15}
+              color={MUTED}
+            />
+
+            <Text style={styles.dataNoteText}>
+              Verified totals will appear when the relevant
+              account records are available.
             </Text>
           </View>
-        ) : (
-          filteredOpportunities
-            .slice(0, 3)
-            .map((opportunity) => (
+
+          {/* Recommended opportunities */}
+          <View style={styles.sectionHeading}>
+            <View style={styles.headingText}>
+              <Text style={styles.sectionTitle}>
+                Recommended Opportunities
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Find a cause that matters to you.
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={openOpportunities}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Browse all opportunities"
+              style={styles.sectionAction}
+            >
+              <Text style={styles.sectionActionText}>
+                View all
+              </Text>
+
+              <Ionicons
+                name="chevron-forward"
+                size={15}
+                color={BLUE}
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons
+                name="compass-outline"
+                size={23}
+                color={BLUE}
+              />
+            </View>
+
+            <View style={styles.emptyTextBlock}>
+              <Text style={styles.emptyTitle}>
+                No published opportunities yet
+              </Text>
+
+              <Text style={styles.emptyDescription}>
+                Genuine opportunities will appear here when
+                they are available from the connected service.
+              </Text>
+
               <Pressable
-                key={opportunity.id}
+                onPress={openOpportunities}
                 style={({ pressed }) => [
-                  styles.opportunityCard,
+                  styles.textAction,
                   pressed && styles.pressed,
                 ]}
-                onPress={() =>
-                  openOpportunity(opportunity)
-                }
+                accessibilityRole="button"
               >
-                <View style={styles.opportunityTop}>
-                  <View style={styles.iconBox}>
-                    <Ionicons
-                      name="briefcase-outline"
-                      size={21}
-                      color="#0958D9"
-                    />
-                  </View>
+                <Text style={styles.textActionLabel}>
+                  Browse opportunities
+                </Text>
 
-                  <View style={styles.opportunityInfo}>
-                    <Text
-                      style={styles.opportunityTitle}
-                      numberOfLines={2}
-                    >
-                      {opportunity.title}
-                    </Text>
-
-                    <Text style={styles.organization}>
-                      {opportunity.organization}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.categoryTagRow}>
-                  <View style={styles.categoryTag}>
-                    <Text style={styles.categoryTagText}>
-                      {opportunity.category}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailsRow}>
-                  <Text style={styles.detail}>
-                    {opportunity.location}
-                  </Text>
-
-                  <Text style={styles.dot}>•</Text>
-
-                  <Text style={styles.detail}>
-                    {opportunity.type}
-                  </Text>
-
-                  <Text style={styles.dot}>•</Text>
-
-                  <Text style={styles.detail}>
-                    {opportunity.hours}
-                  </Text>
-                </View>
-
-                <View style={styles.cardFooter}>
-                  <Text style={styles.openText}>
-                    Open opportunity
-                  </Text>
-
-                  <Ionicons
-                    name="arrow-forward"
-                    size={17}
-                    color="#0958D9"
-                  />
-                </View>
+                <Ionicons
+                  name="arrow-forward"
+                  size={15}
+                  color={BLUE}
+                />
               </Pressable>
-            ))
-        )}
+            </View>
+          </View>
 
-        {/* INFO CARD */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>
-            Your verified impact starts here
-          </Text>
+          {/* Upcoming activities */}
+          <View style={styles.sectionHeading}>
+            <View style={styles.headingText}>
+              <Text style={styles.sectionTitle}>
+                Upcoming Activities
+              </Text>
 
-          <Text style={styles.infoText}>
-            Join an opportunity, contribute your time,
-            and build a trusted record of the work you do.
-          </Text>
-        </View>
+              <Text style={styles.sectionSubtitle}>
+                Keep track of your volunteering commitments.
+              </Text>
+            </View>
+          </View>
 
-        {/* QUICK ACTIONS */}
-        <View style={styles.quickActions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.quickAction,
-              pressed && styles.pressed,
-            ]}
-            onPress={() =>
-              router.push(
-                "/contribution-history"
-              )
-            }
-          >
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons
+                name="calendar-outline"
+                size={23}
+                color={BLUE}
+              />
+            </View>
+
+            <View style={styles.emptyTextBlock}>
+              <Text style={styles.emptyTitle}>
+                No upcoming activities to display
+              </Text>
+
+              <Text style={styles.emptyDescription}>
+                Your scheduled commitments will appear here
+                when genuine application and activity records
+                are available.
+              </Text>
+
+              <Pressable
+                onPress={openApplicationStatus}
+                style={({ pressed }) => [
+                  styles.textAction,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.textActionLabel}>
+                  Check application status
+                </Text>
+
+                <Ionicons
+                  name="arrow-forward"
+                  size={15}
+                  color={BLUE}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Genuine data reminder */}
+          <View style={styles.connectionNote}>
             <Ionicons
-              name="time-outline"
-              size={21}
-              color="#0958D9"
+              name="shield-checkmark-outline"
+              size={18}
+              color={BLUE}
             />
 
-            <Text style={styles.quickActionText}>
-              My contributions
+            <Text style={styles.connectionText}>
+              IMPACTRA displays real volunteer records.
+              Contributions count toward verified impact only
+              after genuine review and verification.
             </Text>
-          </Pressable>
+          </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.quickAction,
-              pressed && styles.pressed,
-            ]}
-            onPress={() =>
-              router.push("/my-profile")
-            }
-          >
-            <Ionicons
-              name="person-outline"
-              size={21}
-              color="#0958D9"
-            />
+          <Text style={styles.footerText}>
+            IMPACTRA
+          </Text>
 
-            <Text style={styles.quickActionText}>
-              My profile
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+          <View style={styles.bottomSpace} />
+        </ScrollView>
 
-      <VolunteerBottomNav />
-    </View>
+        <VolunteerBottomNav />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: BACKGROUND,
+  },
+
   screen: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
+    backgroundColor: BACKGROUND,
   },
 
-  container: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 25,
+  scrollView: {
+    flex: 1,
   },
 
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 24,
+  },
+
+  // Welcome header
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    gap: 11,
+    marginBottom: 20,
+  },
+
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: PALE_BLUE,
+    borderWidth: 1,
+    borderColor: "#DCE8FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  greetingBlock: {
+    flex: 1,
   },
 
   greeting: {
-    fontSize: 13,
-    color: "#68717D",
+    color: TEXT,
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 23,
   },
 
-  name: {
+  greetingSubtitle: {
+    color: MUTED,
+    fontSize: 11,
     marginTop: 3,
-    fontSize: 25,
-    fontWeight: "700",
-    color: "#111111",
   },
 
-  logoButton: {
-    width: 60,
-    height: 60,
+  notificationButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  headerLogo: {
-    width: 60,
-    height: 60,
-  },
-
-  summaryCard: {
-    backgroundColor: "#0958D9",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 27,
-  },
-
-  summaryTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 20,
-  },
-
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  stat: {
-    flex: 1,
-    alignItems: "center",
-  },
-
-  statNumber: {
-    color: "#FFFFFF",
-    fontSize: 25,
-    fontWeight: "700",
-  },
-
-  statLabel: {
-    color: "#DCE9FF",
-    fontSize: 10,
-    marginTop: 4,
-    textAlign: "center",
-  },
-
-  divider: {
-    width: 1,
-    height: 38,
-    backgroundColor: "#4A8AE7",
-  },
-
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
+  // Search
   searchBox: {
-    height: 50,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#D1DCE7",
-    backgroundColor: "#FFFFFF",
-    marginTop: 12,
+    minHeight: 49,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    gap: 10,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    marginBottom: 23,
   },
 
   searchInput: {
     flex: 1,
-    height: "100%",
-    marginLeft: 8,
-    fontSize: 13,
-    color: "#111111",
-  },
-
-  categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 9,
-    paddingVertical: 18,
-  },
-
-  categoryActive: {
-    backgroundColor: "#0958D9",
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    minWidth: 52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  categoryActiveText: {
-    color: "#FFFFFF",
+    height: 46,
+    color: TEXT,
     fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-  },
+    paddingVertical: 0,
+    outlineStyle: "none",
+  } as any,
 
-  category: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D1DCE7",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    minWidth: 52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  categoryText: {
-    color: "#555F6B",
-    fontSize: 12,
-    textAlign: "center",
-  },
-
-  sectionHeader: {
+  // Section headings
+  sectionHeading: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 13,
+    gap: 10,
+    marginBottom: 10,
+    marginTop: 3,
   },
 
-  viewAll: {
-    color: "#0958D9",
-    fontSize: 12,
-    fontWeight: "600",
+  headingText: {
+    flex: 1,
+    minWidth: 0,
   },
 
-  opportunityCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E0E6EC",
-    padding: 16,
-    marginBottom: 13,
+  sectionTitle: {
+    color: TEXT,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 22,
   },
 
-  opportunityTop: {
+  sectionSubtitle: {
+    color: MUTED,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+
+  sectionAction: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+    paddingLeft: 5,
   },
 
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#EAF2FF",
+  sectionActionText: {
+    color: BLUE,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  // Impact summary
+  impactCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: PALE_BLUE,
+    borderWidth: 1,
+    borderColor: "#DFE9FC",
+    borderRadius: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 3,
+  },
+
+  statItem: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 2,
   },
 
-  opportunityInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  opportunityTitle: {
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
-  organization: {
-    fontSize: 12,
-    color: "#6F7883",
+  statValue: {
+    color: DARK_BLUE,
+    fontSize: 21,
+    fontWeight: "900",
+    lineHeight: 27,
     marginTop: 4,
   },
 
-  categoryTagRow: {
-    flexDirection: "row",
-    marginTop: 12,
-  },
-
-  categoryTag: {
-    backgroundColor: "#EAF2FF",
-    borderRadius: 14,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-
-  categoryTagText: {
-    color: "#174B9C",
+  statLabel: {
+    color: "#627590",
     fontSize: 9,
-    fontWeight: "600",
-  },
-
-  detailsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    marginTop: 12,
-  },
-
-  detail: {
-    fontSize: 11,
-    color: "#68717D",
-  },
-
-  dot: {
-    marginHorizontal: 6,
-    color: "#9AA3AD",
-  },
-
-  cardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: "#EEF1F4",
-    marginTop: 14,
-    paddingTop: 13,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  openText: {
-    color: "#0958D9",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  infoCard: {
-    backgroundColor: "#EEF5FF",
-    borderRadius: 14,
-    padding: 18,
-    marginTop: 5,
-  },
-
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#174B9C",
-  },
-
-  infoText: {
-    fontSize: 12,
-    color: "#5D6D81",
-    lineHeight: 18,
-    marginTop: 7,
-  },
-
-  quickActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-  },
-
-  quickAction: {
-    flex: 1,
-    minHeight: 74,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E0E6EC",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-
-  quickActionText: {
-    marginTop: 6,
-    fontSize: 10,
-    color: "#4F5A66",
-    fontWeight: "600",
+    lineHeight: 13,
+    marginTop: 2,
     textAlign: "center",
   },
 
+  statDivider: {
+    width: 1,
+    height: 49,
+    backgroundColor: "#D7E4FC",
+  },
+
+  dataNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 7,
+    marginBottom: 19,
+  },
+
+  dataNoteText: {
+    flex: 1,
+    color: MUTED,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+
+  // Compact honest empty states
   emptyCard: {
-    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: WHITE,
     borderWidth: 1,
-    borderColor: "#E0E6EC",
-    borderRadius: 14,
-    padding: 30,
+    borderColor: BORDER,
+    borderRadius: 15,
+    padding: 13,
+    marginBottom: 19,
+  },
+
+  emptyIcon: {
+    width: 42,
+    height: 42,
+    flexShrink: 0,
+    borderRadius: 13,
+    backgroundColor: PALE_BLUE,
     alignItems: "center",
-    marginBottom: 13,
+    justifyContent: "center",
+  },
+
+  emptyTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingTop: 1,
   },
 
   emptyTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111111",
-    marginTop: 10,
+    color: TEXT,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "800",
   },
 
-  emptyText: {
+  emptyDescription: {
+    color: MUTED,
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  textAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    marginTop: 9,
+    paddingVertical: 3,
+  },
+
+  textActionLabel: {
+    color: BLUE,
     fontSize: 11,
-    color: "#707A86",
-    marginTop: 5,
-    textAlign: "center",
+    fontWeight: "800",
   },
 
   pressed: {
-    opacity: 0.75,
+    opacity: 0.7,
+  },
+
+  // Data integrity note
+  connectionNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    padding: 11,
+    borderRadius: 12,
+    backgroundColor: PALE_BLUE,
+    borderWidth: 1,
+    borderColor: "#DFE9FC",
+    marginBottom: 16,
+  },
+
+  connectionText: {
+    flex: 1,
+    color: "#627590",
+    fontSize: 10,
+    lineHeight: 16,
+  },
+
+  footerText: {
+    color: "#8592A4",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 2,
+    textAlign: "center",
+    marginTop: 2,
+  },
+
+  bottomSpace: {
+    height: 12,
   },
 });

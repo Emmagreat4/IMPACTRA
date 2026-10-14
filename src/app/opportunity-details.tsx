@@ -1,17 +1,48 @@
-import React, { useEffect, useMemo, useState } from "react";
+
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
   Alert,
   Pressable,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams } from "expo-router";
 
-type Opportunity = {
+type RouteParam = string | string[] | undefined;
+
+type OpportunityParams = {
+  id?: RouteParam;
+  opportunityId?: RouteParam;
+  title?: RouteParam;
+  opportunityTitle?: RouteParam;
+  organization?: RouteParam;
+  category?: RouteParam;
+  location?: RouteParam;
+  date?: RouteParam;
+  type?: RouteParam;
+  hours?: RouteParam;
+  description?: RouteParam;
+  responsibilities?: RouteParam;
+  requirements?: RouteParam;
+  capacity?: RouteParam;
+  available?: RouteParam;
+  imageUrl?: RouteParam;
+  startTime?: RouteParam;
+  availableSpots?: RouteParam;
+};
+
+type SavedOpportunity = {
   id: string;
   title: string;
   organization: string;
@@ -21,257 +52,187 @@ type Opportunity = {
   type: string;
   hours: string;
   description: string;
-  responsibilities: string[];
+  responsibilities: string;
   requirements: string;
-  capacity: number;
-  available: number;
+  capacity: string;
+  available: string;
+  imageUrl: string;
+  startTime: string;
+  availableSpots: string;
+  savedAt: string;
 };
 
-type Application = {
-  opportunityId: string;
-  title: string;
-  organization: string;
-  status: "Submitted";
-  appliedAt: string;
+const SAVED_OPPORTUNITIES_KEY = "impactra_saved_opportunities";
+
+const COLORS = {
+  primary: "#155EEF",
+  primaryDark: "#123B70",
+  background: "#F7F9FD",
+  white: "#FFFFFF",
+  paleBlue: "#EAF2FF",
+  border: "#E0E7F0",
+  text: "#172B4D",
+  muted: "#718096",
+  lightText: "#536985",
+  error: "#C62828",
 };
 
-const APPLICATIONS_KEY = "impactra_applications";
+function getParam(value: RouteParam): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
 
-const opportunityData: Opportunity[] = [
-  {
-    id: "1",
-    title: "Community Health Outreach",
-    organization: "Impact Health Initiative",
-    category: "Healthcare",
-    location: "Enugu",
-    date: "Oct 10, 2026",
-    type: "In-person",
-    hours: "4 hrs",
-    description:
-      "Join a community health outreach focused on helping residents access basic health information and support. Volunteers will work with the organization team during the outreach and assist with community engagement.",
-    responsibilities: [
-      "Support community engagement activities",
-      "Help participants access information",
-      "Assist the project team during the outreach",
-      "Submit your completed contribution after the activity",
-    ],
-    requirements:
-      "No previous volunteering experience is required. Volunteers should be available for the full activity period and be willing to work with the community team.",
-    capacity: 20,
-    available: 12,
-  },
+function parseSavedOpportunities(
+  raw: string | null,
+): SavedOpportunity[] {
+  if (!raw) return [];
 
-  {
-    id: "2",
-    title: "Digital Skills for Youth",
-    organization: "Future Forward Africa",
-    category: "Technology",
-    location: "Remote",
-    date: "Oct 14, 2026",
-    type: "Remote",
-    hours: "6 hrs",
-    description:
-      "Help young people develop practical digital skills through guided learning sessions and online support. Volunteers will contribute to a structured digital learning programme.",
-    responsibilities: [
-      "Support learners during digital skills sessions",
-      "Answer basic technology questions",
-      "Assist with online learning activities",
-      "Submit your completed contribution after the activity",
-    ],
-    requirements:
-      "Basic digital skills and reliable internet access are recommended. Previous teaching experience is helpful but not required.",
-    capacity: 25,
-    available: 14,
-  },
+  const parsed: unknown = JSON.parse(raw);
 
-  {
-    id: "3",
-    title: "School Environmental Cleanup",
-    organization: "Green Community Network",
-    category: "Environment",
-    location: "Enugu",
-    date: "Oct 17, 2026",
-    type: "In-person",
-    hours: "3 hrs",
-    description:
-      "Take part in a community environmental cleanup focused on improving the school environment and encouraging responsible waste management.",
-    responsibilities: [
-      "Help clean designated school areas",
-      "Support waste collection and sorting",
-      "Encourage environmental awareness",
-      "Submit your completed contribution after the activity",
-    ],
-    requirements:
-      "Volunteers should be comfortable working outdoors and available for the full activity period.",
-    capacity: 30,
-    available: 18,
-  },
+  if (!Array.isArray(parsed)) {
+    throw new Error("Saved opportunity data is invalid.");
+  }
 
-  {
-    id: "4",
-    title: "After-School Reading Support",
-    organization: "Bright Futures Foundation",
-    category: "Education",
-    location: "Enugu",
-    date: "Oct 20, 2026",
-    type: "In-person",
-    hours: "2 hrs",
-    description:
-      "Support children with reading practice after school and help create a positive learning environment through guided reading activities.",
-    responsibilities: [
-      "Support children's reading activities",
-      "Help learners practise reading",
-      "Encourage participation and confidence",
-      "Submit your completed contribution after the activity",
-    ],
-    requirements:
-      "Volunteers should be patient, supportive and comfortable working with children.",
-    capacity: 20,
-    available: 9,
-  },
+  return parsed.filter(
+    (item): item is SavedOpportunity =>
+      !!item &&
+      typeof item === "object" &&
+      typeof item.id === "string" &&
+      typeof item.title === "string" &&
+      typeof item.savedAt === "string",
+  );
+}
 
-  {
-    id: "5",
-    title: "Social Media Volunteer",
-    organization: "Community Action Network",
-    category: "Technology",
-    location: "Remote",
-    date: "Oct 22, 2026",
-    type: "Remote",
-    hours: "5 hrs",
-    description:
-      "Support a community organisation with social media activities that help communicate projects, volunteer opportunities and community impact.",
-    responsibilities: [
-      "Help prepare social media content",
-      "Support community campaign updates",
-      "Assist with simple social media tasks",
-      "Submit your completed contribution after the activity",
-    ],
-    requirements:
-      "Basic familiarity with social media platforms is recommended. Creativity and clear communication are helpful.",
-    capacity: 20,
-    available: 11,
-  },
-];
+function parseResponsibilities(value: string): string[] {
+  if (!value.trim()) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (item): item is string =>
+          typeof item === "string" && item.trim().length > 0,
+      );
+    }
+  } catch {
+    // Accept plain text supplied by a genuine opportunity listing.
+  }
+
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getNumericParam(value: string): number | null {
+  if (!value.trim()) return null;
+
+  const result = Number(value);
+
+  return Number.isFinite(result) && result >= 0
+    ? result
+    : null;
+}
 
 export default function OpportunityDetailsScreen() {
-  const params = useLocalSearchParams<{
-    id?: string;
-    title?: string;
-  }>();
+  const params = useLocalSearchParams<OpportunityParams>();
 
-  const [applied, setApplied] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const opportunityId =
+    getParam(params.id) || getParam(params.opportunityId);
 
-  const opportunity = useMemo(() => {
-    const found = opportunityData.find(
-      (item) => item.id === params.id
-    );
+  const title =
+    getParam(params.title) || getParam(params.opportunityTitle);
 
-    if (found) {
-      return found;
-    }
+  const organization = getParam(params.organization);
+  const category = getParam(params.category);
+  const location = getParam(params.location);
+  const date = getParam(params.date);
+  const opportunityType = getParam(params.type);
+  const hours = getParam(params.hours);
+  const description = getParam(params.description);
+  const requirements = getParam(params.requirements);
+  const imageUrl = getParam(params.imageUrl);
+  const startTime = getParam(params.startTime);
+  const availableSpots = getParam(params.availableSpots);
+  const responsibilitiesValue = getParam(params.responsibilities);
 
-    return (
-      opportunityData.find(
-        (item) => item.title === params.title
-      ) || opportunityData[0]
-    );
-  }, [params.id, params.title]);
+  const responsibilities = parseResponsibilities(
+    responsibilitiesValue,
+  );
 
-  useEffect(() => {
-    checkApplication();
-  }, [opportunity.id]);
+  const capacityString = getParam(params.capacity);
+  const availableString = getParam(params.available);
 
-  const checkApplication = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(APPLICATIONS_KEY);
+  const capacity = getNumericParam(capacityString);
+  const available = getNumericParam(availableString);
 
-      if (!saved) {
-        setApplied(false);
-        return;
-      }
+  const hasCapacity =
+    capacity !== null &&
+    available !== null &&
+    capacity > 0 &&
+    available <= capacity;
 
-      const applications: Application[] = JSON.parse(saved);
+  const hasOpportunity =
+    opportunityId.trim().length > 0 &&
+    title.trim().length > 0;
 
-      const existing = applications.some(
-        (application) =>
-          application.opportunityId === opportunity.id
-      );
+  const [isSaved, setIsSaved] = useState(false);
+  const [checkingSaved, setCheckingSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
-      setApplied(existing);
-    } catch (error) {
-      console.log("Unable to check application:", error);
-      setApplied(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Refresh bookmark status whenever the screen gains focus.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-  const handleApply = async () => {
-    try {
-      setLoading(true);
+      async function checkSavedOpportunity() {
+        setCheckingSaved(true);
+        setLoadError("");
 
-      const saved = await AsyncStorage.getItem(APPLICATIONS_KEY);
+        if (!hasOpportunity) {
+          setIsSaved(false);
+          setCheckingSaved(false);
+          return;
+        }
 
-      let applications: Application[] = [];
-
-      if (saved) {
         try {
-          applications = JSON.parse(saved);
-        } catch {
-          applications = [];
+          const raw = await AsyncStorage.getItem(
+            SAVED_OPPORTUNITIES_KEY,
+          );
+
+          const savedItems = parseSavedOpportunities(raw);
+
+          if (active) {
+            setIsSaved(
+              savedItems.some(
+                (item) => item.id === opportunityId,
+              ),
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Unable to load saved opportunities:",
+            error,
+          );
+
+          if (active) {
+            setLoadError(
+              "Saved opportunities could not be checked. Please try again.",
+            );
+          }
+        } finally {
+          if (active) setCheckingSaved(false);
         }
       }
 
-      const alreadyApplied = applications.some(
-        (application) =>
-          application.opportunityId === opportunity.id
-      );
+      void checkSavedOpportunity();
 
-      if (alreadyApplied) {
-        setApplied(true);
-
-        Alert.alert(
-          "Already applied",
-          "You have already applied for this opportunity."
-        );
-
-        return;
-      }
-
-      const newApplication: Application = {
-        opportunityId: opportunity.id,
-        title: opportunity.title,
-        organization: opportunity.organization,
-        status: "Submitted",
-        appliedAt: new Date().toISOString(),
+      return () => {
+        active = false;
       };
-
-      applications.push(newApplication);
-
-      await AsyncStorage.setItem(
-        APPLICATIONS_KEY,
-        JSON.stringify(applications)
-      );
-
-      setApplied(true);
-
-      Alert.alert(
-        "Application submitted",
-        `Your application for ${opportunity.title} has been submitted successfully.`
-      );
-    } catch (error) {
-      console.log("Application error:", error);
-
-      Alert.alert(
-        "IMPACTRA",
-        "Your application could not be submitted. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    }, [opportunityId, hasOpportunity]),
+  );
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -281,262 +242,517 @@ export default function OpportunityDetailsScreen() {
     }
   };
 
-  const percentageFilled =
-    opportunity.capacity > 0
-      ? ((opportunity.capacity - opportunity.available) /
-          opportunity.capacity) *
-        100
-      : 0;
+  // This opens the form. It does not submit an application.
+  const handleApply = () => {
+    if (!hasOpportunity) {
+      Alert.alert(
+        "Opportunity unavailable",
+        "A valid opportunity ID and title are required before an application can be started.",
+      );
+      return;
+    }
+
+    router.push({
+      pathname: "/application-form",
+      params: {
+        id: opportunityId,
+        title,
+        organization,
+        category,
+        location,
+        date,
+        type: opportunityType,
+        hours,
+        description,
+        responsibilities: responsibilitiesValue,
+        requirements,
+        capacity: capacityString,
+        available: availableString,
+        imageUrl,
+        startTime,
+        availableSpots,
+      },
+    });
+  };
+
+  // Saving a bookmark is separate from an application.
+  const handleToggleSaved = async () => {
+    if (!hasOpportunity) {
+      Alert.alert(
+        "Opportunity unavailable",
+        "This screen does not have a complete opportunity record to save.",
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setLoadError("");
+
+      const raw = await AsyncStorage.getItem(
+        SAVED_OPPORTUNITIES_KEY,
+      );
+
+      const savedItems = parseSavedOpportunities(raw);
+
+      const alreadySaved = savedItems.some(
+        (item) => item.id === opportunityId,
+      );
+
+      if (alreadySaved) {
+        const updatedItems = savedItems.filter(
+          (item) => item.id !== opportunityId,
+        );
+
+        await AsyncStorage.setItem(
+          SAVED_OPPORTUNITIES_KEY,
+          JSON.stringify(updatedItems),
+        );
+
+        setIsSaved(false);
+      } else {
+        const record: SavedOpportunity = {
+          id: opportunityId,
+          title,
+          organization,
+          category,
+          location,
+          date,
+          type: opportunityType,
+          hours,
+          description,
+          responsibilities: responsibilitiesValue,
+          requirements,
+          capacity: capacityString,
+          available: availableString,
+          imageUrl,
+          startTime,
+          availableSpots,
+          savedAt: new Date().toISOString(),
+        };
+
+        await AsyncStorage.setItem(
+          SAVED_OPPORTUNITIES_KEY,
+          JSON.stringify([...savedItems, record]),
+        );
+
+        setIsSaved(true);
+      }
+    } catch (error) {
+      console.error(
+        "Unable to update saved opportunities:",
+        error,
+      );
+
+      Alert.alert(
+        "Unable to update saved list",
+        "The bookmark could not be changed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const retrySavedCheck = () => {
+    router.replace({
+      pathname: "/opportunity-details",
+      params,
+    });
+  };
+
+  const openOpportunities = () => {
+    router.replace("/opportunities");
+  };
 
   return (
-    <View style={styles.screen}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed && styles.pressed,
-          ]}
-          onPress={handleBack}
-          hitSlop={8}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={21}
-            color="#111111"
-          />
-        </Pressable>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={COLORS.white}
+      />
 
-        <Text style={styles.headerTitle}>
-          Opportunity details
-        </Text>
-
-        <View style={styles.headerSpace} />
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.container}
-      >
-        {/* HERO */}
-        <View style={styles.heroIcon}>
-          <Ionicons
-            name="briefcase-outline"
-            size={32}
-            color="#0958D9"
-          />
-        </View>
-
-        <Text style={styles.title}>
-          {opportunity.title}
-        </Text>
-
-        <Text style={styles.organization}>
-          {opportunity.organization}
-        </Text>
-
-        <View style={styles.verifiedRow}>
-          <View style={styles.verifiedDot} />
-
-          <Text style={styles.verifiedText}>
-            Verified organization
-          </Text>
-        </View>
-
-        {/* QUICK DETAILS */}
-        <View style={styles.detailsCard}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
-              Location
-            </Text>
-
-            <Text style={styles.detailValue}>
-              {opportunity.location}
-            </Text>
-          </View>
-
-          <View style={styles.detailDivider} />
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
-              Date
-            </Text>
-
-            <Text style={styles.detailValue}>
-              {opportunity.date}
-            </Text>
-          </View>
-
-          <View style={styles.detailDivider} />
-
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>
-              Hours
-            </Text>
-
-            <Text style={styles.detailValue}>
-              {opportunity.hours}
-            </Text>
-          </View>
-        </View>
-
-        {/* TYPE */}
-        <View style={styles.typeRow}>
-          <View style={styles.typeTag}>
-            <Text style={styles.typeTagText}>
-              {opportunity.category}
-            </Text>
-          </View>
-
-          <View style={styles.typeTag}>
-            <Text style={styles.typeTagText}>
-              {opportunity.type}
-            </Text>
-          </View>
-        </View>
-
-        {/* DESCRIPTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            About this opportunity
-          </Text>
-
-          <Text style={styles.bodyText}>
-            {opportunity.description}
-          </Text>
-        </View>
-
-        {/* RESPONSIBILITIES */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            What you will do
-          </Text>
-
-          {opportunity.responsibilities.map(
-            (responsibility, index) => (
-              <View
-                key={index}
-                style={styles.bulletRow}
-              >
-                <Text style={styles.bullet}>•</Text>
-
-                <Text style={styles.bulletText}>
-                  {responsibility}
-                </Text>
-              </View>
-            )
-          )}
-        </View>
-
-        {/* REQUIREMENTS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Requirements
-          </Text>
-
-          <Text style={styles.bodyText}>
-            {opportunity.requirements}
-          </Text>
-        </View>
-
-        {/* CAPACITY */}
-        <View style={styles.capacityCard}>
-          <View>
-            <Text style={styles.capacityLabel}>
-              Volunteer capacity
-            </Text>
-
-            <Text style={styles.capacityValue}>
-              {opportunity.available} spots available
-            </Text>
-          </View>
-
-          <View style={styles.capacityBarBackground}>
-            <View
-              style={[
-                styles.capacityBar,
-                {
-                  width: `${Math.max(
-                    0,
-                    Math.min(100, percentageFilled)
-                  )}%`,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* APPLY */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.applyButton,
-            applied && styles.appliedButton,
-            pressed && styles.pressed,
-            loading && styles.loadingButton,
-          ]}
-          onPress={handleApply}
-          disabled={applied || loading}
-        >
-          <Text
-            style={[
-              styles.applyButtonText,
-              applied && styles.appliedButtonText,
-            ]}
-          >
-            {loading
-              ? "Checking..."
-              : applied
-              ? "Application submitted"
-              : "Apply now"}
-          </Text>
-
-          {!applied && !loading ? (
-            <Ionicons
-              name="arrow-forward"
-              size={18}
-              color="#FFFFFF"
-            />
-          ) : null}
-        </Pressable>
-
-        {/* APPLICATION STATUS */}
-        {applied ? (
+      <View style={styles.screen}>
+        <View style={styles.header}>
           <Pressable
             style={({ pressed }) => [
-              styles.statusButton,
+              styles.backButton,
               pressed && styles.pressed,
             ]}
-            onPress={() =>
-              router.push("/application-status")
-            }
+            onPress={handleBack}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons
-              name="document-text-outline"
-              size={18}
-              color="#0958D9"
+              name="arrow-back"
+              size={21}
+              color={COLORS.text}
             />
-
-            <Text style={styles.statusText}>
-              View application status
-            </Text>
           </Pressable>
-        ) : null}
-      </ScrollView>
-    </View>
+
+          <Text style={styles.headerTitle}>
+            Opportunity details
+          </Text>
+
+          <View style={styles.headerSpace} />
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.container}
+        >
+          {!hasOpportunity ? (
+            <View style={styles.emptyState}>
+              <View style={styles.heroIcon}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={30}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                Opportunity details unavailable
+              </Text>
+
+              <Text style={styles.emptyText}>
+                This screen did not receive a complete opportunity
+                record. Genuine listing details must come from
+                Discover or the connected opportunities service.
+              </Text>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.pressed,
+                ]}
+                onPress={openOpportunities}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name="compass-outline"
+                  size={18}
+                  color={COLORS.white}
+                />
+                <Text style={styles.primaryButtonText}>
+                  Back to Discover
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={styles.heroIcon}>
+                <Ionicons
+                  name="briefcase-outline"
+                  size={30}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <Text style={styles.title}>{title}</Text>
+
+              {organization ? (
+                <Text style={styles.organization}>
+                  {organization}
+                </Text>
+              ) : null}
+
+              <View style={styles.notice}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color={COLORS.primary}
+                />
+
+                <Text style={styles.noticeText}>
+                  Details shown here come from the selected listing.
+                  Organization verification and application status
+                  are not independently confirmed on this screen.
+                </Text>
+              </View>
+
+              {(location || date || hours || startTime || availableSpots) ? (
+                <View style={styles.detailsCard}>
+                  {location ? (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons
+                          name="location-outline"
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+
+                      <Text style={styles.detailLabel}>Location</Text>
+                      <Text style={styles.detailValue}>{location}</Text>
+                    </View>
+                  ) : null}
+
+                  {date ? (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+
+                      <Text style={styles.detailLabel}>Date</Text>
+                      <Text style={styles.detailValue}>{date}</Text>
+                    </View>
+                  ) : null}
+
+                  {startTime ? (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons
+                          name="time-outline"
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+
+                      <Text style={styles.detailLabel}>Start time</Text>
+                      <Text style={styles.detailValue}>{startTime}</Text>
+                    </View>
+                  ) : null}
+
+                  {hours ? (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons
+                          name="hourglass-outline"
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+
+                      <Text style={styles.detailLabel}>Duration</Text>
+                      <Text style={styles.detailValue}>{hours}</Text>
+                    </View>
+                  ) : null}
+
+                  {availableSpots ? (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIcon}>
+                        <Ionicons
+                          name="people-outline"
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+
+                      <Text style={styles.detailLabel}>
+                        Available places
+                      </Text>
+                      <Text style={styles.detailValue}>
+                        {availableSpots}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {(category || opportunityType) ? (
+                <View style={styles.tagRow}>
+                  {category ? (
+                    <View style={styles.tag}>
+                      <Text style={styles.tagText}>{category}</Text>
+                    </View>
+                  ) : null}
+
+                  {opportunityType ? (
+                    <View style={styles.tag}>
+                      <Text style={styles.tagText}>
+                        {opportunityType}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {description ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    About this opportunity
+                  </Text>
+                  <Text style={styles.bodyText}>{description}</Text>
+                </View>
+              ) : null}
+
+              {responsibilities.length > 0 ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    What you will do
+                  </Text>
+
+                  {responsibilities.map((responsibility, index) => (
+                    <View
+                      key={`${index}-${responsibility}`}
+                      style={styles.bulletRow}
+                    >
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={19}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.bulletText}>
+                        {responsibility}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {requirements ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    Requirements
+                  </Text>
+                  <Text style={styles.bodyText}>{requirements}</Text>
+                </View>
+              ) : null}
+
+              {hasCapacity ? (
+                <View style={styles.capacityCard}>
+                  <Text style={styles.capacityLabel}>
+                    Volunteer availability
+                  </Text>
+
+                  <Text style={styles.capacityValue}>
+                    {available} of {capacity} places available
+                  </Text>
+
+                  <View style={styles.capacityBackground}>
+                    <View
+                      style={[
+                        styles.capacityBar,
+                        {
+                          width: `${
+                            ((capacity - available!) / capacity!) * 100
+                          }%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ) : null}
+
+              {loadError ? (
+                <View style={styles.errorBox}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={20}
+                    color={COLORS.error}
+                  />
+
+                  <View style={styles.errorContent}>
+                    <Text style={styles.errorText}>{loadError}</Text>
+
+                    <Pressable onPress={retrySavedCheck}>
+                      <Text style={styles.retryText}>Retry</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Opens the form. It does not submit anything. */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.applyButton,
+                  pressed && styles.pressed,
+                ]}
+                onPress={handleApply}
+                accessibilityRole="button"
+                accessibilityLabel="Continue to application form"
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={19}
+                  color={COLORS.white}
+                />
+                <Text style={styles.applyButtonText}>
+                  Continue to application
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={17}
+                  color={COLORS.white}
+                />
+              </Pressable>
+
+              {/* Bookmark action remains independent from applying. */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  isSaved && styles.savedButton,
+                  (checkingSaved || saving || !!loadError) &&
+                    styles.disabledButton,
+                  pressed && styles.pressed,
+                ]}
+                onPress={handleToggleSaved}
+                disabled={checkingSaved || saving || !!loadError}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isSaved
+                    ? "Remove from saved opportunities"
+                    : "Save opportunity"
+                }
+              >
+                {checkingSaved || saving ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={COLORS.primary}
+                  />
+                ) : (
+                  <Ionicons
+                    name={isSaved ? "bookmark" : "bookmark-outline"}
+                    size={19}
+                    color={COLORS.primary}
+                  />
+                )}
+
+                <Text style={styles.saveButtonText}>
+                  {checkingSaved
+                    ? "Checking saved list..."
+                    : saving
+                      ? "Updating saved list..."
+                      : isSaved
+                        ? "Saved on this device · Remove"
+                        : "Save opportunity"}
+                </Text>
+              </Pressable>
+
+              <Text style={styles.footerNotice}>
+                Continuing opens the application form; it does not submit
+                anything. Saved opportunities remain on this device.
+                Online application submission requires a connected backend.
+              </Text>
+            </>
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+
   screen: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
+    backgroundColor: COLORS.background,
   },
 
   header: {
-    height: 72,
-    backgroundColor: "#FFFFFF",
+    minHeight: 62,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: "#E6EBF0",
+    borderBottomColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -546,16 +762,18 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F2F5F8",
+    borderRadius: 12,
+    backgroundColor: COLORS.paleBlue,
     alignItems: "center",
     justifyContent: "center",
   },
 
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111111",
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.text,
   },
 
   headerSpace: {
@@ -563,170 +781,166 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    paddingHorizontal: 20,
-    paddingTop: 25,
-    paddingBottom: 45,
+    paddingHorizontal: 19,
+    paddingTop: 23,
+    paddingBottom: 35,
   },
 
   heroIcon: {
-    width: 72,
-    height: 72,
+    width: 63,
+    height: 63,
     borderRadius: 18,
-    backgroundColor: "#EAF2FF",
+    backgroundColor: COLORS.paleBlue,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
   },
 
   title: {
-    marginTop: 18,
-    fontSize: 24,
-    lineHeight: 31,
-    fontWeight: "700",
-    color: "#111111",
+    marginTop: 15,
+    fontSize: 22,
+    lineHeight: 29,
+    fontWeight: "800",
+    color: COLORS.text,
     textAlign: "center",
   },
 
   organization: {
-    marginTop: 7,
-    fontSize: 14,
-    color: "#69737E",
+    marginTop: 6,
+    fontSize: 13,
+    color: COLORS.muted,
     textAlign: "center",
   },
 
-  verifiedRow: {
-    alignSelf: "center",
+  notice: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: 9,
+    alignItems: "flex-start",
+    backgroundColor: COLORS.paleBlue,
+    borderRadius: 11,
+    padding: 12,
+    marginTop: 18,
+    gap: 9,
   },
 
-  verifiedDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#2E7D32",
-    marginRight: 6,
-  },
-
-  verifiedText: {
+  noticeText: {
+    flex: 1,
     fontSize: 11,
-    color: "#4C6550",
-    fontWeight: "500",
+    lineHeight: 17,
+    color: COLORS.lightText,
   },
 
   detailsCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.white,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E0E6EC",
-    marginTop: 23,
-    paddingVertical: 17,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
+    borderColor: COLORS.border,
+    marginTop: 16,
+    padding: 13,
+    gap: 14,
   },
 
   detailItem: {
-    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
   },
 
+  detailIcon: {
+    width: 35,
+    height: 35,
+    borderRadius: 10,
+    backgroundColor: COLORS.paleBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+
   detailLabel: {
+    flex: 1,
     fontSize: 11,
-    color: "#7A848F",
-    marginBottom: 5,
+    color: COLORS.muted,
   },
 
   detailValue: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#111111",
-    textAlign: "center",
+    maxWidth: "57%",
+    fontSize: 11,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "right",
   },
 
-  detailDivider: {
-    width: 1,
-    height: 35,
-    backgroundColor: "#E4E8ED",
-  },
-
-  typeRow: {
+  tagRow: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 14,
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 12,
   },
 
-  typeTag: {
-    backgroundColor: "#EAF2FF",
-    borderRadius: 15,
+  tag: {
+    backgroundColor: COLORS.paleBlue,
+    borderRadius: 18,
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
 
-  typeTagText: {
+  tagText: {
     fontSize: 10,
-    color: "#174B9C",
-    fontWeight: "600",
+    color: COLORS.primaryDark,
+    fontWeight: "700",
   },
 
   section: {
-    marginTop: 27,
+    marginTop: 23,
   },
 
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111111",
-    marginBottom: 10,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "800",
+    color: COLORS.text,
+    marginBottom: 9,
   },
 
   bodyText: {
-    fontSize: 13,
-    lineHeight: 21,
-    color: "#626D78",
+    fontSize: 12,
+    lineHeight: 20,
+    color: COLORS.lightText,
   },
 
   bulletRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 9,
-  },
-
-  bullet: {
-    fontSize: 17,
-    color: "#0958D9",
-    marginRight: 9,
-    lineHeight: 20,
+    marginBottom: 10,
+    gap: 9,
   },
 
   bulletText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#626D78",
+    fontSize: 12,
+    lineHeight: 19,
+    color: COLORS.lightText,
   },
 
   capacityCard: {
-    backgroundColor: "#EEF5FF",
-    borderRadius: 13,
-    padding: 16,
-    marginTop: 26,
+    backgroundColor: COLORS.paleBlue,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 22,
   },
 
   capacityLabel: {
     fontSize: 11,
-    color: "#64758A",
+    color: COLORS.lightText,
   },
 
   capacityValue: {
-    marginTop: 4,
-    fontSize: 14,
-    color: "#174B9C",
-    fontWeight: "700",
+    marginTop: 5,
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.primaryDark,
   },
 
-  capacityBarBackground: {
+  capacityBackground: {
     height: 6,
     borderRadius: 3,
     backgroundColor: "#D4E2F7",
@@ -737,60 +951,135 @@ const styles = StyleSheet.create({
   capacityBar: {
     height: "100%",
     borderRadius: 3,
-    backgroundColor: "#0958D9",
+    backgroundColor: COLORS.primary,
   },
 
   applyButton: {
-    width: "100%",
-    height: 51,
-    borderRadius: 8,
-    backgroundColor: "#0958D9",
+    minHeight: 49,
+    borderRadius: 11,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    marginTop: 25,
-  },
-
-  appliedButton: {
-    backgroundColor: "#E5F3E7",
-    borderWidth: 1,
-    borderColor: "#A9D4AE",
-  },
-
-  loadingButton: {
-    opacity: 0.7,
+    gap: 9,
+    paddingHorizontal: 12,
+    marginTop: 24,
   },
 
   applyButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-    marginRight: 7,
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+    flexShrink: 1,
   },
 
-  appliedButtonText: {
-    color: "#28632E",
-    marginRight: 0,
-  },
-
-  statusButton: {
-    width: "100%",
-    height: 47,
-    borderRadius: 8,
+  saveButton: {
+    minHeight: 47,
+    borderRadius: 11,
+    backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: "#AFC1D0",
-    backgroundColor: "#FFFFFF",
+    borderColor: "#C8D8EF",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    marginTop: 11,
+    gap: 9,
+    paddingHorizontal: 12,
+    marginTop: 10,
   },
 
-  statusText: {
-    color: "#0958D9",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 7,
+  saveButtonText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
+  savedButton: {
+    backgroundColor: COLORS.paleBlue,
+    borderColor: "#C8D8EF",
+  },
+
+  disabledButton: {
+    opacity: 0.65,
+  },
+
+  footerNotice: {
+    fontSize: 10,
+    lineHeight: 16,
+    color: COLORS.muted,
+    marginTop: 12,
+    textAlign: "center",
+  },
+
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF1F0",
+    borderRadius: 10,
+    padding: 12,
+    gap: 9,
+    marginTop: 17,
+  },
+
+  errorContent: {
+    flex: 1,
+  },
+
+  errorText: {
+    color: COLORS.error,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+
+  retryText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 7,
+  },
+
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 380,
+    paddingHorizontal: 8,
+  },
+
+  emptyTitle: {
+    marginTop: 17,
+    fontSize: 19,
+    lineHeight: 26,
+    fontWeight: "800",
+    color: COLORS.text,
+    textAlign: "center",
+  },
+
+  emptyText: {
+    fontSize: 12,
+    lineHeight: 20,
+    color: COLORS.muted,
+    textAlign: "center",
+    marginTop: 9,
+    maxWidth: 340,
+  },
+
+  primaryButton: {
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 22,
+  },
+
+  primaryButtonText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "800",
   },
 
   pressed: {

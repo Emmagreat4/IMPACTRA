@@ -1,14 +1,39 @@
-import React, { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  Pressable,
-  TextInput,
   FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { router } from "expo-router";
+
 import VolunteerBottomNav from "../components/volunteer-bottom-nav";
+
+const BLUE = "#155EEF";
+const DARK_BLUE = "#123B70";
+const BACKGROUND = "#F7F9FD";
+const PALE_BLUE = "#EFF5FF";
+const BORDER = "#E5EBF4";
+const TEXT = "#172B4D";
+const MUTED = "#7B8798";
+const WHITE = "#FFFFFF";
+
+const categories = [
+  "All",
+  "Food Relief",
+  "Community",
+  "Health",
+  "Education",
+  "Environment",
+  "Technology",
+];
 
 type Opportunity = {
   id: string;
@@ -19,530 +44,791 @@ type Opportunity = {
   date: string;
   type: string;
   hours: string;
+  imageUrl?: string;
+  startTime?: string;
+  availableSpots?: number;
+  description?: string;
+  responsibilities?: string;
+  requirements?: string;
+  capacity?: string;
+  available?: string;
 };
 
-const opportunities: Opportunity[] = [
-  {
-    id: "1",
-    title: "Community Health Outreach",
-    organization: "Impact Health Initiative",
-    category: "Healthcare",
-    location: "Enugu",
-    date: "Oct 10, 2026",
-    type: "In-person",
-    hours: "4 hrs",
-  },
-  {
-    id: "2",
-    title: "Digital Skills for Youth",
-    organization: "Future Forward Africa",
-    category: "Technology",
-    location: "Remote",
-    date: "Oct 14, 2026",
-    type: "Remote",
-    hours: "6 hrs",
-  },
-  {
-    id: "3",
-    title: "School Environmental Cleanup",
-    organization: "Green Community Network",
-    category: "Environment",
-    location: "Enugu",
-    date: "Oct 17, 2026",
-    type: "In-person",
-    hours: "3 hrs",
-  },
-  {
-    id: "4",
-    title: "After-School Reading Support",
-    organization: "Bright Futures Foundation",
-    category: "Education",
-    location: "Enugu",
-    date: "Oct 20, 2026",
-    type: "In-person",
-    hours: "2 hrs",
-  },
-  {
-    id: "5",
-    title: "Social Media Volunteer",
-    organization: "Community Action Network",
-    category: "Technology",
-    location: "Remote",
-    date: "Oct 22, 2026",
-    type: "Remote",
-    hours: "5 hrs",
-  },
-];
-
-const categories = [
-  "All",
-  "Education",
-  "Healthcare",
-  "Environment",
-  "Technology",
-];
+/*
+ * Keep this empty until the genuine published-opportunities
+ * service is connected. Never insert fictional listings here.
+ */
+const opportunities: Opportunity[] = [];
 
 export default function OpportunitiesScreen() {
-  const [search, setSearch] = useState("");
+  const params = useLocalSearchParams<{
+    search?: string | string[];
+  }>();
+
+  const initialSearch = Array.isArray(params.search)
+    ? params.search[0] ?? ""
+    : params.search ?? "";
+
+  const [search, setSearch] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState("All");
 
-  const filteredOpportunities = useMemo(() => {
-    return opportunities.filter((item) => {
-      const searchValue = search.toLowerCase();
+  useEffect(() => {
+    setSearch(initialSearch);
+  }, [initialSearch]);
 
+  const filteredOpportunities = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return opportunities.filter((item) => {
       const matchesSearch =
-        item.title.toLowerCase().includes(searchValue) ||
-        item.organization.toLowerCase().includes(searchValue) ||
-        item.location.toLowerCase().includes(searchValue);
+        !query ||
+        item.title.toLowerCase().includes(query) ||
+        item.organization.toLowerCase().includes(query) ||
+        item.location.toLowerCase().includes(query) ||
+        item.category.toLowerCase().includes(query);
 
       const matchesCategory =
         selectedCategory === "All" ||
-        item.category === selectedCategory;
+        item.category.trim().toLowerCase() ===
+          selectedCategory.toLowerCase();
 
       return matchesSearch && matchesCategory;
     });
   }, [search, selectedCategory]);
+
+  const filtersAreActive =
+    search.trim().length > 0 || selectedCategory !== "All";
+
+  const openOpportunity = (item: Opportunity) => {
+    router.push({
+      pathname: "/opportunity-details",
+      params: {
+        id: item.id,
+        title: item.title,
+        organization: item.organization,
+        category: item.category,
+        location: item.location,
+        date: item.date,
+        type: item.type,
+        hours: item.hours,
+        imageUrl: item.imageUrl ?? "",
+        startTime: item.startTime ?? "",
+        availableSpots:
+          item.availableSpots === undefined
+            ? ""
+            : String(item.availableSpots),
+        description: item.description ?? "",
+        responsibilities: item.responsibilities ?? "",
+        requirements: item.requirements ?? "",
+        capacity: item.capacity ?? "",
+        available: item.available ?? "",
+      },
+    });
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setSelectedCategory("All");
+  };
 
   const renderOpportunity = ({
     item,
   }: {
     item: Opportunity;
   }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.pressed,
-      ]}
-      onPress={() =>
-        router.push({
-          pathname: "/opportunity-details",
-          params: {
-            id: item.id,
-            title: item.title,
-          },
-        })
-      }
-    >
-      <View style={styles.cardTop}>
-        <View style={styles.categoryIcon}>
-          <Text style={styles.categoryIconText}>
-            {item.category.charAt(0)}
+    <View style={styles.opportunityCard}>
+      {item.imageUrl ? (
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.opportunityImage}
+            resizeMode="cover"
+            accessibilityLabel={`Photo for ${item.title}`}
+          />
+
+          <View style={styles.imageBadges}>
+            <View style={styles.imageBadge}>
+              <Text style={styles.imageBadgeText}>
+                {item.category}
+              </Text>
+            </View>
+
+            {item.hours ? (
+              <View style={styles.imageBadge}>
+                <Ionicons
+                  name="time-outline"
+                  size={13}
+                  color={DARK_BLUE}
+                />
+                <Text style={styles.imageBadgeText}>
+                  {item.hours}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.cardDetails}>
+        <View style={styles.metadataRow}>
+          <Text style={styles.categoryLabel}>
+            {item.category.toUpperCase()}
+          </Text>
+
+          <View style={styles.metadataDot} />
+
+          <Ionicons
+            name="location-outline"
+            size={13}
+            color={MUTED}
+          />
+
+          <Text style={styles.locationText}>
+            {item.location}
           </Text>
         </View>
 
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
+        <Text style={styles.cardTitle}>{item.title}</Text>
 
-          <Text style={styles.organization}>
-            {item.organization}
+        <Text style={styles.organization}>
+          {item.organization}
+        </Text>
+
+        {item.date || item.startTime ? (
+          <View style={styles.dateRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={15}
+              color={BLUE}
+            />
+            <Text style={styles.dateText}>
+              {[item.date, item.startTime]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          </View>
+        ) : null}
+
+        {typeof item.availableSpots === "number" ? (
+          <View style={styles.spotsRow}>
+            <Ionicons
+              name="people-outline"
+              size={16}
+              color={BLUE}
+            />
+            <Text style={styles.spotsText}>
+              {item.availableSpots} available places
+            </Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.viewButton,
+            pressed && styles.pressed,
+          ]}
+          onPress={() => openOpportunity(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${item.title}`}
+        >
+          <Text style={styles.viewButtonText}>
+            View Opportunity
           </Text>
-        </View>
+          <Ionicons
+            name="arrow-forward"
+            size={16}
+            color={WHITE}
+          />
+        </Pressable>
       </View>
-
-      <View style={styles.tagRow}>
-        <View style={styles.tag}>
-          <Text style={styles.tagText}>{item.category}</Text>
-        </View>
-
-        <View style={styles.tag}>
-          <Text style={styles.tagText}>{item.type}</Text>
-        </View>
-      </View>
-
-      <View style={styles.details}>
-        <Text style={styles.detailText}>
-          Location: {item.location}
-        </Text>
-
-        <Text style={styles.detailText}>
-          Date: {item.date}
-        </Text>
-
-        <Text style={styles.detailText}>
-          Hours: {item.hours}
-        </Text>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.viewText}>
-          View opportunity
-        </Text>
-
-        <Text style={styles.arrow}>›</Text>
-      </View>
-    </Pressable>
+    </View>
   );
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.main}>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={WHITE}
+      />
+
+      <View style={styles.screen}>
+        {/* Discover header */}
         <View style={styles.header}>
           <Pressable
-            onPress={() => router.back()}
-            style={styles.backButton}
+            style={styles.headerIcon}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/home");
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
-            <Text style={styles.backArrow}>‹</Text>
+            <Ionicons
+              name="arrow-back"
+              size={22}
+              color={TEXT}
+            />
           </Pressable>
 
-          <Text style={styles.headerTitle}>
-            Opportunities
-          </Text>
+          <Text style={styles.headerTitle}>Discover</Text>
 
-          <View style={styles.headerSpace} />
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.headerAction}
+              onPress={() => router.push("/saved-opportunities")}
+              accessibilityRole="button"
+              accessibilityLabel="Open saved opportunities"
+            >
+              <Ionicons
+                name="bookmark-outline"
+                size={21}
+                color={BLUE}
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.headerAction}
+              onPress={() => router.push("/application-status")}
+              accessibilityRole="button"
+              accessibilityLabel="Check application status"
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={21}
+                color={TEXT}
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.avatar}
+              onPress={() => router.push("/profile")}
+              accessibilityRole="button"
+              accessibilityLabel="Open profile"
+            >
+              <Ionicons
+                name="person-outline"
+                size={21}
+                color={BLUE}
+              />
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.content}>
-          <Text style={styles.introTitle}>
-            Find an opportunity
-          </Text>
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Ionicons
+            name="search-outline"
+            size={19}
+            color={BLUE}
+          />
 
-          <Text style={styles.introText}>
-            Discover volunteer opportunities that match your
-            interests and skills.
-          </Text>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search causes, tasks, or places..."
+            placeholderTextColor="#98A3B3"
+            style={styles.searchInput}
+            returnKeyType="search"
+            accessibilityLabel="Search published opportunities"
+          />
 
-          <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>⌕</Text>
+          {search.length > 0 ? (
+            <Pressable
+              onPress={() => setSearch("")}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Ionicons
+                name="close-circle"
+                size={19}
+                color={MUTED}
+              />
+            </Pressable>
+          ) : null}
+        </View>
 
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search opportunities"
-              placeholderTextColor="#8993A0"
-              style={styles.searchInput}
-            />
-          </View>
-
-          {/* CATEGORY FILTERS */}
-          <View style={styles.categoryGrid}>
-            {categories.map((item) => {
-              const selected = selectedCategory === item;
+        {/* Category filters */}
+        <View style={styles.categoryArea}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryList}
+          >
+            {categories.map((category) => {
+              const active = selectedCategory === category;
 
               return (
                 <Pressable
-                  key={item}
-                  onPress={() => setSelectedCategory(item)}
+                  key={category}
+                  onPress={() => setSelectedCategory(category)}
                   style={[
-                    styles.filterButton,
-                    selected && styles.filterButtonActive,
+                    styles.categoryChip,
+                    active && styles.categoryChipActive,
                   ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text
                     style={[
-                      styles.filterText,
-                      selected && styles.filterTextActive,
+                      styles.categoryChipText,
+                      active && styles.categoryChipTextActive,
                     ]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.85}
                   >
-                    {item}
+                    {category}
                   </Text>
                 </Pressable>
               );
             })}
-          </View>
-
-          <View style={styles.resultHeader}>
-            <Text style={styles.resultTitle}>
-              Available opportunities
-            </Text>
-
-            <Text style={styles.resultCount}>
-              {filteredOpportunities.length}
-            </Text>
-          </View>
-
-          <FlatList
-            data={filteredOpportunities}
-            keyExtractor={(item) => item.id}
-            renderItem={renderOpportunity}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>
-                  No opportunities found
-                </Text>
-
-                <Text style={styles.emptyText}>
-                  Try a different search or category.
-                </Text>
-              </View>
-            }
-          />
+          </ScrollView>
         </View>
-      </View>
 
-      <VolunteerBottomNav />
-    </View>
+        {/* Opportunity results */}
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          data={filteredOpportunities}
+          keyExtractor={(item) => item.id}
+          renderItem={renderOpportunity}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionTitle}>
+                DISCOVER OPPORTUNITIES
+              </Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Browse published opportunities from participating
+                organizations.
+              </Text>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <Ionicons
+                  name={
+                    filtersAreActive
+                      ? "search-outline"
+                      : "compass-outline"
+                  }
+                  size={29}
+                  color={BLUE}
+                />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                {filtersAreActive
+                  ? "No matching opportunities"
+                  : "Published opportunities are not connected yet"}
+              </Text>
+
+              <Text style={styles.emptyDescription}>
+                {filtersAreActive
+                  ? "No published records match the current search and category. Try adjusting your search or clearing the filters."
+                  : "This screen is ready to display genuine opportunities. No published-opportunities endpoint has been confirmed in the available backend reference, so no sample listings are shown."}
+              </Text>
+
+              {filtersAreActive ? (
+                <Pressable
+                  onPress={clearFilters}
+                  style={({ pressed }) => [
+                    styles.resetButton,
+                    pressed && styles.pressed,
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.resetButtonText}>
+                    Clear search and filters
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          }
+          ListFooterComponent={
+            <View style={styles.footerNote}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={17}
+                color={BLUE}
+              />
+              <Text style={styles.footerNoteText}>
+                Only genuine published opportunities should appear here.
+              </Text>
+            </View>
+          }
+        />
+
+        <VolunteerBottomNav />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1,
-    backgroundColor: "#F7F9FC",
+    backgroundColor: WHITE,
   },
 
-  main: {
+  screen: {
     flex: 1,
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
+    backgroundColor: BACKGROUND,
   },
 
   header: {
-    height: 72,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E6EBF0",
+    minHeight: 60,
+    paddingHorizontal: 17,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
+    backgroundColor: WHITE,
+    gap: 10,
   },
 
-  backButton: {
-    width: 40,
+  headerIcon: {
+    width: 32,
     height: 40,
-    alignItems: "center",
     justifyContent: "center",
   },
 
-  backArrow: {
-    fontSize: 31,
-    color: "#111111",
-    fontWeight: "300",
-  },
-
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
-  headerSpace: {
-    width: 40,
-  },
-
-  content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 22,
+    color: TEXT,
+    fontSize: 20,
+    fontWeight: "800",
   },
 
-  introTitle: {
-    fontSize: 21,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
-  introText: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "#6A7480",
-    lineHeight: 19,
-    maxWidth: 340,
-  },
-
-  searchBox: {
-    height: 50,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D1DCE7",
-    borderRadius: 10,
+  headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    marginTop: 18,
+    gap: 7,
   },
 
-  searchIcon: {
-    fontSize: 22,
-    color: "#6D7680",
-    marginRight: 8,
+  headerAction: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: WHITE,
+    borderRadius: 18,
+  },
+
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: PALE_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#DCE8FF",
+  },
+
+  searchContainer: {
+    minHeight: 47,
+    marginHorizontal: 17,
+    marginTop: 7,
+    marginBottom: 7,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: WHITE,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
 
   searchInput: {
     flex: 1,
-    height: "100%",
-    fontSize: 13,
-    color: "#111111",
-  },
-
-  /* NEW RESPONSIVE CATEGORY GRID */
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 9,
-    paddingVertical: 16,
-  },
-
-  filterButton: {
-    minWidth: 74,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D1DCE7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  filterButtonActive: {
-    backgroundColor: "#0958D9",
-    borderColor: "#0958D9",
-  },
-
-  filterText: {
+    height: 44,
+    paddingVertical: 0,
+    color: TEXT,
     fontSize: 12,
-    color: "#59636E",
-    textAlign: "center",
   },
 
-  filterTextActive: {
-    color: "#FFFFFF",
+  categoryArea: {
+    backgroundColor: WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+
+  categoryList: {
+    paddingHorizontal: 17,
+    paddingTop: 6,
+    paddingBottom: 12,
+    gap: 8,
+  },
+
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: "#F7F9FC",
+  },
+
+  categoryChipActive: {
+    backgroundColor: BLUE,
+    borderColor: BLUE,
+  },
+
+  categoryChipText: {
+    color: "#59677A",
+    fontSize: 11,
     fontWeight: "600",
   },
 
-  resultHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-
-  resultTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
-  resultCount: {
-    fontSize: 12,
-    color: "#6D7680",
+  categoryChipTextActive: {
+    color: WHITE,
+    fontWeight: "800",
   },
 
   list: {
-    paddingBottom: 25,
+    flex: 1,
   },
 
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+  listContent: {
+    paddingHorizontal: 17,
+    paddingBottom: 16,
+    flexGrow: 1,
+  },
+
+  sectionHeading: {
+    paddingTop: 18,
+    paddingBottom: 13,
+  },
+
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    color: TEXT,
+  },
+
+  sectionSubtitle: {
+    marginTop: 5,
+    color: MUTED,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+
+  opportunityCard: {
+    backgroundColor: WHITE,
     borderWidth: 1,
-    borderColor: "#E0E6EC",
-    padding: 16,
-    marginBottom: 13,
+    borderColor: BORDER,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 15,
   },
 
-  cardTop: {
+  imageContainer: {
+    height: 170,
+    width: "100%",
+    position: "relative",
+    backgroundColor: PALE_BLUE,
+  },
+
+  opportunityImage: {
+    height: "100%",
+    width: "100%",
+  },
+
+  imageBadges: {
+    position: "absolute",
+    left: 10,
+    top: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+
+  imageBadge: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: WHITE,
   },
 
-  categoryIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#EAF2FF",
+  imageBadgeText: {
+    color: DARK_BLUE,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  cardDetails: {
+    padding: 13,
+  },
+
+  metadataRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 7,
   },
 
-  categoryIconText: {
-    color: "#0958D9",
-    fontSize: 19,
-    fontWeight: "700",
+  categoryLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    color: BLUE,
   },
 
-  cardInfo: {
-    flex: 1,
-    marginLeft: 12,
+  metadataDot: {
+    height: 3,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: "#A6B0BF",
+  },
+
+  locationText: {
+    fontSize: 10,
+    color: MUTED,
+    flexShrink: 1,
   },
 
   cardTitle: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#111111",
-    lineHeight: 19,
+    fontWeight: "800",
+    lineHeight: 20,
+    color: TEXT,
   },
 
   organization: {
     marginTop: 4,
-    fontSize: 12,
-    color: "#707A86",
-  },
-
-  tagRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 14,
-  },
-
-  tag: {
-    backgroundColor: "#F1F5F9",
-    borderRadius: 15,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-
-  tagText: {
-    fontSize: 10,
-    color: "#56616D",
-  },
-
-  details: {
-    marginTop: 12,
-    gap: 5,
-  },
-
-  detailText: {
+    color: MUTED,
     fontSize: 11,
-    color: "#6D7782",
   },
 
-  footer: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#EEF1F4",
+  dateRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 7,
+    marginTop: 11,
   },
 
-  viewText: {
-    fontSize: 12,
-    color: "#0958D9",
-    fontWeight: "600",
+  dateText: {
+    fontSize: 10,
+    color: "#596A80",
+    flexShrink: 1,
   },
 
-  arrow: {
-    fontSize: 22,
-    color: "#0958D9",
+  spotsRow: {
+    marginTop: 10,
+    backgroundColor: PALE_BLUE,
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 
-  emptyState: {
+  spotsText: {
+    color: DARK_BLUE,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  viewButton: {
+    minHeight: 42,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 70,
-    paddingHorizontal: 25,
+    gap: 9,
+    backgroundColor: BLUE,
+    borderRadius: 10,
+    marginTop: 13,
   },
 
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111111",
-  },
-
-  emptyText: {
-    marginTop: 7,
+  viewButtonText: {
+    color: WHITE,
     fontSize: 12,
-    color: "#6D7782",
-    textAlign: "center",
+    fontWeight: "800",
   },
 
   pressed: {
     opacity: 0.75,
+  },
+
+  emptyState: {
+    paddingHorizontal: 16,
+    paddingVertical: 22,
+    alignItems: "center",
+    backgroundColor: WHITE,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: BORDER,
+    marginBottom: 15,
+  },
+
+  emptyIcon: {
+    width: 49,
+    height: 49,
+    borderRadius: 15,
+    backgroundColor: PALE_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+
+  emptyTitle: {
+    color: TEXT,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
+  emptyDescription: {
+    marginTop: 7,
+    color: MUTED,
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: "center",
+    maxWidth: 350,
+  },
+
+  resetButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C9D9F7",
+    marginTop: 14,
+  },
+
+  resetButtonText: {
+    color: BLUE,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  footerNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingHorizontal: 3,
+    paddingVertical: 10,
+  },
+
+  footerNoteText: {
+    flex: 1,
+    color: MUTED,
+    fontSize: 10,
+    lineHeight: 15,
   },
 });

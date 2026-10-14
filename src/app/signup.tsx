@@ -1,7 +1,10 @@
+
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,12 +14,57 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
 import { router } from "expo-router";
-import { saveUser } from "../utils/storage";
+import { getUser, saveUser } from "../utils/storage";
+
+const COLORS = {
+  primary: "#155EEF",
+  primaryDark: "#123B70",
+  background: "#F7F9FD",
+  white: "#FFFFFF",
+  paleBlue: "#EAF2FF",
+  border: "#D9E3F0",
+  text: "#172B4D",
+  muted: "#718096",
+  error: "#C62828",
+};
+
+type SignupUser = {
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  password?: string;
+};
+
+function GoogleLogo() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 48 48">
+      <Path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <Path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.71 7.18l7.61 5.9c4.44-4.1 7.14-10.15 7.14-17.55z"
+      />
+      <Path
+        fill="#FBBC05"
+        d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.52 2.56 10.78l7.97-6.19z"
+      />
+      <Path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.91-5.9l-7.61-5.9c-2.11 1.41-4.81 2.24-8.3 2.24-6.26 0-11.57-4.22-13.47-9.91l-7.97 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </Svg>
+  );
+}
 
 export default function SignupScreen() {
-  const [username, setUsername] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,74 +72,112 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const clearMessages = () => {
+    setErrorMessage("");
+    setNotice("");
+  };
 
   const handleSignup = async () => {
-    if (loading) {
-      return;
-    }
+    if (loading) return;
 
-    const cleanUsername = username.trim();
+    Keyboard.dismiss();
+    clearMessages();
+
+    const cleanFirstName = firstName.trim();
+    const cleanLastName = lastName.trim();
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanUsername || !cleanEmail || !password || !confirmPassword) {
-      Alert.alert("IMPACTRA", "Please fill in all fields.");
+    if (
+      !cleanFirstName ||
+      !cleanLastName ||
+      !cleanEmail ||
+      !password ||
+      !confirmPassword
+    ) {
+      setErrorMessage("Please complete all fields.");
       return;
     }
 
-    if (!cleanEmail.includes("@") || !cleanEmail.includes(".")) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(cleanEmail)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert(
-        "Password Too Short",
-        "Your password must be at least 6 characters."
-      );
+      setErrorMessage("Your password must contain at least 6 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert(
-        "Passwords Do Not Match",
-        "Please make sure both passwords are the same."
-      );
+      setErrorMessage("Your passwords do not match.");
       return;
     }
 
     try {
       setLoading(true);
 
+      const existingUser = (await getUser()) as SignupUser | null;
+
+      if (
+        existingUser?.email?.trim().toLowerCase() === cleanEmail
+      ) {
+        setErrorMessage(
+          "An account with this email is already saved on this device. Please log in instead.",
+        );
+        return;
+      }
+
       await saveUser({
-        username: cleanUsername,
+        username: `${cleanFirstName} ${cleanLastName}`,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
         email: cleanEmail,
-        password: password,
+        password,
       });
+
+      const savedUser = (await getUser()) as SignupUser | null;
+
+      if (
+        !savedUser ||
+        savedUser.email?.trim().toLowerCase() !== cleanEmail
+      ) {
+        throw new Error("Saved account could not be verified.");
+      }
 
       router.replace("/profile");
     } catch (error) {
-      console.log("Signup error:", error);
+      console.error("IMPACTRA sign-up error:", error);
 
-      Alert.alert(
-        "IMPACTRA",
-        "The account could not be created. Please try again."
+      setErrorMessage(
+        "We couldn't save your account. Please try again. If the problem continues, check the terminal for an error.",
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignup = () => {
-    Alert.alert(
-      "Continue with Google",
-      "Google authentication is not connected yet."
+  const handleProviderNotice = (provider: "Google" | "Apple") => {
+    clearMessages();
+
+    setNotice(
+      `${provider} sign-up is not connected yet. Provider authentication must be configured before this option can create an account.`,
     );
   };
 
-  const handleAppleSignup = () => {
-    Alert.alert(
-      "Continue with Apple",
-      "Apple authentication is not connected yet."
+  const handleTerms = () => {
+    setNotice(
+      "The Terms and Conditions page is not available yet. The final legal terms must be added before public release.",
+    );
+  };
+
+  const handlePrivacy = () => {
+    setNotice(
+      "The Privacy Policy page is not available yet. The final policy must explain how volunteer information is collected, stored and used before public release.",
     );
   };
 
@@ -105,16 +191,13 @@ export default function SignupScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.backgroundCircleTop} />
-        <View style={styles.backgroundCircleBottom} />
-
-        <View style={styles.card}>
-          {/* LOGO */}
+        <View style={styles.content}>
           <View style={styles.logoContainer}>
             <Image
               source={require("../../assets/images/impactra-logo.png")}
               style={styles.logoImage}
               resizeMode="contain"
+              accessibilityLabel="IMPACTRA logo"
             />
 
             <Text style={styles.brandName}>IMPACTRA</Text>
@@ -124,122 +207,167 @@ export default function SignupScreen() {
             </Text>
           </View>
 
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Create an account</Text>
 
           <Text style={styles.subtitle}>
-            Start building your verified impact profile.
+            Start your volunteering journey with IMPACTRA.
           </Text>
 
-          {/* USERNAME */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
-
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="person-outline"
-                size={21}
-                color="#777777"
-              />
+          <View style={styles.nameRow}>
+            <View style={styles.nameField}>
+              <Text style={styles.label}>First name</Text>
 
               <TextInput
                 style={styles.input}
-                placeholder="Enter your username"
-                placeholderTextColor="#999999"
-                value={username}
-                onChangeText={setUsername}
+                value={firstName}
+                onChangeText={(value) => {
+                  setFirstName(value);
+                  clearMessages();
+                }}
+                placeholder="First name"
+                placeholderTextColor={COLORS.muted}
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!loading}
+                returnKeyType="next"
+                accessibilityLabel="First name"
+              />
+            </View>
+
+            <View style={styles.nameField}>
+              <Text style={styles.label}>Last name</Text>
+
+              <TextInput
+                style={styles.input}
+                value={lastName}
+                onChangeText={(value) => {
+                  setLastName(value);
+                  clearMessages();
+                }}
+                placeholder="Last name"
+                placeholderTextColor={COLORS.muted}
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!loading}
+                returnKeyType="next"
+                accessibilityLabel="Last name"
               />
             </View>
           </View>
 
-          {/* EMAIL */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>Email address</Text>
 
             <View style={styles.inputContainer}>
               <Ionicons
                 name="mail-outline"
-                size={21}
-                color="#777777"
+                size={19}
+                color={COLORS.muted}
               />
 
               <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#999999"
+                style={styles.inputWithIcon}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  clearMessages();
+                }}
+                placeholder="Enter your email"
+                placeholderTextColor={COLORS.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
                 editable={!loading}
+                returnKeyType="next"
+                accessibilityLabel="Email address"
               />
             </View>
           </View>
 
-          {/* PASSWORD */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
 
             <View style={styles.inputContainer}>
               <Ionicons
                 name="lock-closed-outline"
-                size={21}
-                color="#777777"
+                size={19}
+                color={COLORS.muted}
               />
 
               <TextInput
-                style={styles.input}
-                placeholder="Create a password"
-                placeholderTextColor="#999999"
+                style={styles.inputWithIcon}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  clearMessages();
+                }}
+                placeholder="Create a password"
+                placeholderTextColor={COLORS.muted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="new-password"
+                textContentType="newPassword"
                 editable={!loading}
+                returnKeyType="next"
+                accessibilityLabel="Password"
               />
 
               <Pressable
                 onPress={() => setShowPassword((value) => !value)}
                 hitSlop={10}
+                style={styles.eyeButton}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showPassword ? "Hide password" : "Show password"
+                }
               >
                 <Ionicons
                   name={
-                    showPassword
-                      ? "eye-off-outline"
-                      : "eye-outline"
+                    showPassword ? "eye-off-outline" : "eye-outline"
                   }
-                  size={21}
-                  color="#777777"
+                  size={20}
+                  color={COLORS.muted}
                 />
               </Pressable>
             </View>
+
+            <Text style={styles.helperText}>
+              Use at least 6 characters.
+            </Text>
           </View>
 
-          {/* CONFIRM PASSWORD */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>Confirm password</Text>
 
             <View style={styles.inputContainer}>
               <Ionicons
-                name="shield-checkmark-outline"
-                size={21}
-                color="#777777"
+                name="lock-closed-outline"
+                size={19}
+                color={COLORS.muted}
               />
 
               <TextInput
-                style={styles.input}
-                placeholder="Confirm your password"
-                placeholderTextColor="#999999"
+                style={styles.inputWithIcon}
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(value) => {
+                  setConfirmPassword(value);
+                  clearMessages();
+                }}
+                placeholder="Enter your password again"
+                placeholderTextColor={COLORS.muted}
                 secureTextEntry={!showConfirmPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="new-password"
+                textContentType="newPassword"
                 editable={!loading}
+                returnKeyType="done"
+                onSubmitEditing={() => void handleSignup()}
+                accessibilityLabel="Confirm password"
               />
 
               <Pressable
@@ -247,6 +375,14 @@ export default function SignupScreen() {
                   setShowConfirmPassword((value) => !value)
                 }
                 hitSlop={10}
+                style={styles.eyeButton}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showConfirmPassword
+                    ? "Hide confirm password"
+                    : "Show confirm password"
+                }
               >
                 <Ionicons
                   name={
@@ -254,85 +390,96 @@ export default function SignupScreen() {
                       ? "eye-off-outline"
                       : "eye-outline"
                   }
-                  size={21}
-                  color="#777777"
+                  size={20}
+                  color={COLORS.muted}
                 />
               </Pressable>
             </View>
           </View>
 
-          {/* CREATE ACCOUNT BUTTON */}
+          {errorMessage ? (
+            <View style={styles.errorBox}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={19}
+                color={COLORS.error}
+              />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
+          {notice ? (
+            <View style={styles.noticeBox}>
+              <Ionicons
+                name="information-circle-outline"
+                size={19}
+                color={COLORS.primary}
+              />
+              <Text style={styles.noticeText}>{notice}</Text>
+            </View>
+          ) : null}
+
           <Pressable
-            onPress={handleSignup}
+            onPress={() => void handleSignup()}
             disabled={loading}
             accessibilityRole="button"
             style={({ pressed }) => [
-              styles.signupButton,
+              styles.createButton,
               pressed && styles.pressed,
               loading && styles.disabledButton,
             ]}
           >
-            <Text style={styles.signupButtonText}>
-              {loading ? "Creating Account..." : "Create Account"}
-            </Text>
-
-            {!loading && (
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#FFFFFF"
-              />
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Text style={styles.createButtonText}>
+                Create Account
+              </Text>
             )}
           </Pressable>
 
-          {/* DIVIDER */}
           <View style={styles.divider}>
-            <View style={styles.line} />
-            <Text style={styles.orText}>OR</Text>
-            <View style={styles.line} />
+            <View style={styles.dividerLine} />
+            <Text style={styles.orText}>Or continue with</Text>
+            <View style={styles.dividerLine} />
           </View>
 
-          {/* GOOGLE */}
           <Pressable
-            onPress={handleGoogleSignup}
+            onPress={() => handleProviderNotice("Google")}
             style={({ pressed }) => [
               styles.socialButton,
               pressed && styles.pressed,
             ]}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
           >
-            <FontAwesome5
-              name="google"
-              size={18}
-              color="#4285F4"
-              style={styles.socialIcon}
-            />
-
+            <GoogleLogo />
             <Text style={styles.socialText}>
               Continue with Google
             </Text>
           </Pressable>
 
-          {/* APPLE */}
           <Pressable
-            onPress={handleAppleSignup}
+            onPress={() => handleProviderNotice("Apple")}
             style={({ pressed }) => [
               styles.socialButton,
               pressed && styles.pressed,
             ]}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
           >
             <Ionicons
               name="logo-apple"
-              size={21}
-              color="#111111"
-              style={styles.socialIcon}
+              size={22}
+              color={COLORS.text}
             />
-
             <Text style={styles.socialText}>
               Continue with Apple
             </Text>
           </Pressable>
 
-          {/* LOGIN LINK */}
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>
               Already have an account?
@@ -341,13 +488,29 @@ export default function SignupScreen() {
             <Pressable
               onPress={() => router.replace("/login")}
               hitSlop={8}
+              disabled={loading}
             >
-              <Text style={styles.loginLink}>Login</Text>
+              <Text style={styles.loginLink}>Log in</Text>
             </Pressable>
           </View>
-        </View>
 
-        <Text style={styles.footer}>© 2026 IMPACTRA</Text>
+          <Text style={styles.legalText}>
+            By creating an account, you acknowledge that the final{" "}
+            <Text style={styles.legalLink} onPress={handleTerms}>
+              Terms and Conditions
+            </Text>{" "}
+            and{" "}
+            <Text style={styles.legalLink} onPress={handlePrivacy}>
+              Privacy Policy
+            </Text>{" "}
+            still need to be published.
+          </Text>
+
+          <Text style={styles.footerNote}>
+            Local development mode: account details are saved on this
+            device. Secure online registration has not been connected yet.
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -356,89 +519,74 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F3F7FC",
+    backgroundColor: COLORS.background,
   },
 
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 35,
+    paddingHorizontal: 22,
+    paddingVertical: 25,
   },
 
-  backgroundCircleTop: {
-    position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "#0958D9",
-    opacity: 0.08,
-    top: -80,
-    right: -70,
-  },
-
-  backgroundCircleBottom: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "#0958D9",
-    opacity: 0.06,
-    bottom: -70,
-    left: -70,
-  },
-
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 25,
-    paddingHorizontal: 24,
-    paddingVertical: 30,
-    shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 8,
+  content: {
+    width: "100%",
+    maxWidth: 380,
+    alignSelf: "center",
   },
 
   logoContainer: {
     alignItems: "center",
-    marginBottom: 25,
+    marginBottom: 22,
   },
 
   logoImage: {
-    width: 88,
-    height: 88,
-    marginBottom: 5,
+    width: 48,
+    height: 48,
   },
 
   brandName: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#0958D9",
-    letterSpacing: 1.5,
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: 0.6,
+    marginTop: 4,
   },
 
   tagline: {
-    fontSize: 11,
-    color: "#888888",
-    marginTop: 5,
+    fontSize: 10,
+    color: COLORS.muted,
     textAlign: "center",
+    marginTop: 6,
   },
 
   title: {
-    fontSize: 25,
-    fontWeight: "800",
-    color: "#111111",
+    fontSize: 22,
+    lineHeight: 29,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "center",
+    marginTop: 6,
   },
 
   subtitle: {
-    fontSize: 14,
-    color: "#777777",
-    marginTop: 5,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.muted,
+    textAlign: "center",
+    marginTop: 6,
     marginBottom: 23,
+  },
+
+  nameRow: {
+    flexDirection: "row",
+    gap: 11,
+    marginBottom: 15,
+  },
+
+  nameField: {
+    flex: 1,
+    minWidth: 0,
   },
 
   inputGroup: {
@@ -446,114 +594,194 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
-    color: "#333333",
-    marginBottom: 7,
-  },
-
-  inputContainer: {
-    height: 53,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F7F9FC",
-    borderWidth: 1,
-    borderColor: "#E1E6EF",
-    borderRadius: 13,
-    paddingHorizontal: 14,
+    color: COLORS.text,
+    marginBottom: 8,
   },
 
   input: {
-    flex: 1,
-    fontSize: 14,
-    color: "#111111",
-    marginLeft: 10,
+    width: "100%",
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 11,
+    fontSize: 12,
+    color: COLORS.text,
   },
 
-  signupButton: {
-    height: 54,
+  inputContainer: {
+    minHeight: 49,
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+
+  inputWithIcon: {
+    flex: 1,
+    minWidth: 0,
+    height: 47,
+    paddingVertical: 0,
+    paddingHorizontal: 10,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+
+  eyeButton: {
+    width: 34,
+    height: 40,
+    alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0958D9",
-    borderRadius: 13,
-    marginTop: 5,
   },
 
-  signupButtonText: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    marginRight: 9,
+  helperText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 6,
   },
 
-  disabledButton: {
-    opacity: 0.7,
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 11,
+    marginTop: 2,
+    marginBottom: 12,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#F0C9C9",
+    backgroundColor: "#FFF1F0",
+  },
+
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.error,
+  },
+
+  noticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 11,
+    marginTop: 2,
+    marginBottom: 12,
+    borderRadius: 9,
+    backgroundColor: COLORS.paleBlue,
+  },
+
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.primaryDark,
+  },
+
+  createButton: {
+    width: "100%",
+    minHeight: 49,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 3,
+  },
+
+  createButtonText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 22,
+    gap: 11,
+    marginTop: 21,
+    marginBottom: 15,
   },
 
-  line: {
+  dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E5E5E5",
+    backgroundColor: COLORS.border,
   },
 
   orText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#999999",
-    marginHorizontal: 12,
+    color: COLORS.muted,
   },
 
   socialButton: {
-    height: 52,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#E2E2E2",
-    backgroundColor: "#FFFFFF",
+    width: "100%",
+    minHeight: 49,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 11,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
     marginBottom: 11,
   },
 
-  socialIcon: {
-    marginRight: 10,
-  },
-
   socialText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#222222",
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.text,
   },
 
   loginContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    gap: 6,
+    marginTop: 9,
   },
 
   loginText: {
-    fontSize: 13,
-    color: "#777777",
+    fontSize: 11,
+    color: COLORS.muted,
   },
 
   loginLink: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#0958D9",
-    marginTop: 5,
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.primary,
   },
 
-  footer: {
+  legalText: {
     textAlign: "center",
-    fontSize: 11,
-    color: "#999999",
-    marginTop: 18,
+    fontSize: 10,
+    lineHeight: 16,
+    color: COLORS.muted,
+    marginTop: 17,
+  },
+
+  legalLink: {
+    color: COLORS.primary,
+    textDecorationLine: "underline",
+    fontWeight: "600",
+  },
+
+  footerNote: {
+    textAlign: "center",
+    fontSize: 10,
+    lineHeight: 16,
+    color: COLORS.muted,
+    marginTop: 12,
+  },
+
+  disabledButton: {
+    opacity: 0.65,
   },
 
   pressed: {
